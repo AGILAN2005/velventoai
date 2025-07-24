@@ -1,0 +1,12 @@
+fastapi 
+uvicorn 
+chromadb 
+sentence-transformers 
+google-generativeai 
+python-dotenv 
+hf_xet
+httpx
+python-dotenv
+google
+sqlalchemy 
+psycopg2
