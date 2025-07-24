@@ -1,27 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db import models, schemas
-from rag.chroma_db import add_feedback_to_vector_db
+from models.models import Feedback, Summary
+from schemas.schemas import FeedbackSubmit
+from utils.gemini_rag import generate_summary
 
 router = APIRouter()
 
-@router.post("/submit-feedback", response_model=schemas.FeedbackResponse)
-def submit_feedback(feedback: schemas.FeedbackCreate, db: Session = Depends(get_db)):
-    db_feedback = models.Feedback(
-        student_id=feedback.student_id,
-        subject=feedback.subject,
-        score=feedback.score,
-        comments=feedback.comments
-    )
-    db.add(db_feedback)
+@router.post("/submit-feedback")
+def submit_feedback(data: FeedbackSubmit, db: Session = Depends(get_db)):
+    feedback = Feedback(user_id=data.user_id, comment=data.comment)
+    db.add(feedback)
     db.commit()
-    db.refresh(db_feedback)
 
-    # ✅ Add to ChromaDB for RAG use
-    try:
-        add_feedback_to_vector_db(student_id=feedback.student_id, feedback_text=feedback.comments)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"ChromaDB error: {str(e)}")
-
-    return db_feedback
+    summary_text = generate_summary(data.comment)
+    summary = Summary(user_id=data.user_id, summary_text=summary_text)
+    db.add(summary)
+    db.commit()
+    return {"summary": summary_text}

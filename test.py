@@ -1,82 +1,73 @@
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
+import requests
+import random
 
+BASE_URL = "http://localhost:8000"
 
-load_dotenv()
+def register_user():
+    res = requests.post(f"{BASE_URL}/register_user", json={
+        "username": "testuser1",
+        "email": "testuser1@example.com"
+    })
+    print("✅ Register User:", res.json())
+    return res.json().get("user_id")
 
-try:
-    # Configure the API key.
-    # The SDK will automatically pick up the GEMINI_API_KEY from environment variables.
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-except KeyError:
-    print("Error: GEMINI_API_KEY environment variable not set.")
-    print("Please set your API key as an environment variable or create a .env file.")
-    exit()
+def generate_questions(topic="Time Complexity"):
+    res = requests.post(f"{BASE_URL}/generate-questions/", json={"topic": topic})
+    print("✅ Generate Questions:", res.status_code)
+    return res.json()
 
-def generate_gemini_response(prompt_text, model_name="gemini-1.5-flash"):
-    """
-    Generates a response from the Gemini API for a given prompt.
+def get_next_question(user_id):
+    res = requests.get(f"{BASE_URL}/next_question", params={"user_id": user_id})
+    print("✅ Next Question:", res.json())
+    return res.json()
 
-    Args:
-        prompt_text (str): The text prompt for the Gemini model.
-        model_name (str): The name of the Gemini model to use.
-                          (e.g., "gemini-1.5-flash").
-                          'gemini-1.5-pro' is more capable but has stricter
-                          free-tier quotas and might lead to rate limit errors.
+def submit_answer(user_id, question_id, options, correct_answer):
+    chosen = random.choice(options)
+    res = requests.post(f"{BASE_URL}/submit_answer", json={
+        "user_id": user_id,
+        "question_id": question_id,
+        "selected_option": chosen,
+        "is_correct": (chosen == correct_answer)
+    })
+    print("✅ Submit Answer:", res.json())
 
-    Returns:
-        str: The generated text response, or an error message.
-    """
-    try:
-        # Initialize the GenerativeModel
-        model = genai.GenerativeModel(model_name=model_name)
+def submit_feedback(user_id, question_id):
+    res = requests.post(f"{BASE_URL}/submit-feedback", json={
+        "user_id": user_id,
+        "question_id": question_id,
+        "difficulty_rating": random.choice(["easy", "medium", "hard"]),
+        "feedback_text": "Good question"
+    })
+    print("✅ Submit Feedback:", res.json())
 
-        # Generate content
-        response = model.generate_content(prompt_text)
+def update_gamification(user_id):
+    res = requests.post(f"{BASE_URL}/gamification/update", json={
+        "user_id": user_id,
+        "points_earned": random.randint(1, 10),
+        "badge_earned": "Quick Thinker"
+    })
+    print("✅ Update Gamification:", res.json())
 
-        # Return the generated text
-        return response.text
+def get_gamification_status(user_id):
+    res = requests.get(f"{BASE_URL}/gamification/status/{user_id}")
+    print("✅ Gamification Status:", res.json())
 
-    except Exception as e:
-        # This will catch specific API errors like quota issues.
-        return f"An error occurred: {e}"
+# ---- TEST SEQUENCE ----
 
-if __name__ == "__main__":
-    # Example Usage:
+user_id = register_user()
+questions = generate_questions()
 
-    # --- Using the most reliable free-tier model: gemini-1.5-flash ---
-    # This model is generally good for most tasks and has more generous
-    # free-tier quotas, making it less likely to hit rate limits quickly.
-    user_prompt_1 = "What are the key differences between a black hole and a wormhole?"
-    print(f"User Prompt: {user_prompt_1}\n")
-    response_text_1 = generate_gemini_response(user_prompt_1, model_name="gemini-1.5-flash")
-    print("Generated Response (gemini-1.5-flash):")
-    print(response_text_1)
-    print("-" * 30)
+if questions:
+    for q in questions:
+        question_id = q.get("id") or q.get("question_id", 1)  # adjust as needed
+        options = q.get("options", [])
+        answer = q.get("answer", options[0] if options else None)
 
-    user_prompt_2 = "Write a short, uplifting haiku about new beginnings."
-    print(f"User Prompt: {user_prompt_2}\n")
-    response_text_2 = generate_gemini_response(user_prompt_2, model_name="gemini-1.5-flash")
-    print("Generated Response (gemini-1.5-flash):")
-    print(response_text_2)
-    print("-" * 30)
+        if question_id and options and answer:
+            submit_answer(user_id, question_id, options, answer)
+            submit_feedback(user_id, question_id)
+            update_gamification(user_id)
 
-    user_prompt_3 = "Tell me an interesting fact about the ocean."
-    print(f"User Prompt: {user_prompt_3}\n")
-    response_text_3 = generate_gemini_response(user_prompt_3, model_name="gemini-1.5-flash")
-    print("Generated Response (gemini-1.5-flash):")
-    print(response_text_3)
-    print("-" * 30)
-
-    # --- Example of trying gemini-1.5-pro (use with caution for free tier) ---
-    # This is commented out to prevent immediate quota issues, but you can uncomment
-    # if you want to test and are aware of potential rate limits.
-    # user_prompt_4 = "Explain quantum entanglement in simple terms."
-    # print(f"User Prompt: {user_prompt_4}\n")
-    # response_text_4 = generate_gemini_response(user_prompt_4, model_name="gemini-1.5-pro")
-    # print("Generated Response (gemini-1.5-pro):")
-    # print(response_text_4)
-    # print("-" * 30)
-
-    print("\nScript execution complete. If you encountered errors, check your API key and quotas.")
+# Fetch current progress
+get_next_question(user_id)
+get_gamification_status(user_id)

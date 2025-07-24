@@ -10,3 +10,4 @@ python-dotenv
 google
 sqlalchemy 
 psycopg2
+duckduckgo-search
